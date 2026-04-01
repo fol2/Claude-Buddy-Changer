@@ -156,6 +156,9 @@ function mulberry32(seed) {
 }
 
 function hashString(str) {
+  if (typeof Bun !== 'undefined') {
+    return Number(BigInt(Bun.hash(str)) & 0xffffffffn);
+  }
   let h = 2166136261;
   for (let i = 0; i < str.length; i += 1) {
     h ^= str.charCodeAt(i);

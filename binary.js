@@ -1,4 +1,5 @@
 const fs = require('fs');
+const path = require('path');
 const childProcess = require('child_process');
 
 function resignBinaryIfNeeded(filePath) {
@@ -14,13 +15,30 @@ function resignBinaryIfNeeded(filePath) {
 }
 
 function findClaudeBinary() {
-  try {
-    const out = childProcess.execSync('which claude', { encoding: 'utf8' }).trim();
-    if (!out) return null;
-    return fs.realpathSync(out);
-  } catch {
-    return null;
+  const commands = process.platform === 'win32'
+    ? ['where claude', 'where claude.exe']
+    : ['which claude'];
+  for (const cmd of commands) {
+    try {
+      const out = childProcess.execSync(cmd, { encoding: 'utf8' }).trim().split(/\r?\n/)[0];
+      if (!out) continue;
+      if (fs.existsSync(out)) return fs.realpathSync(out);
+    } catch {
+      continue;
+    }
   }
+  // Fallback: check common Windows install locations
+  if (process.platform === 'win32') {
+    const home = process.env.USERPROFILE || process.env.HOME || '';
+    const candidates = [
+      path.join(home, '.local', 'bin', 'claude.exe'),
+      path.join(home, 'AppData', 'Local', 'Programs', 'claude', 'claude.exe'),
+    ];
+    for (const p of candidates) {
+      if (fs.existsSync(p)) return fs.realpathSync(p);
+    }
+  }
+  return null;
 }
 
 function resolveBinaryPath(binaryPath) {
