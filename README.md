@@ -37,7 +37,8 @@
 .
 ├── binary.js       # Claude Code binary 检测 / apply / restore
 ├── buddy-core.js   # roll 算法 + sprite 渲染 + 搜索逻辑
-├── buddy-lab.js    # 命令行工具
+├── buddy-lab.js    # 命令行工具（预览 / 搜索）
+├── apply-buddy.js  # 命令行工具（应用 salt 到 binary）
 ├── index.html      # 本地网页界面
 ├── server.js       # 本地 HTTP 服务
 └── state.js        # 原始 salt 记录文件管理
@@ -45,15 +46,27 @@
 
 ## 环境要求
 
-- Node.js 18+
+- **Bun**（推荐）或 Node.js 18+
 - 本机已安装 Claude Code
 - 建议系统已能正常执行 `claude`
+
+> ⚠️ **重要**：Claude Code 内部使用 Bun 的 `Bun.hash()`（wyhash）计算 buddy。用 `node` 启动本工具会使用 FNV-1a 作为 hash 函数，导致预测结果与实际不符。**必须使用 `npx bun run` 启动**才能获得准确结果。
 
 查看版本：
 
 ```bash
-node -v
-which claude
+node -v        # Node.js (用于 apply-buddy.js)
+npx bun -v     # Bun (用于 server / buddy-lab)
+which claude   # Linux/macOS
+where claude   # Windows
+```
+
+### 安装 Bun
+
+如果尚未安装：
+
+```bash
+npm install -g bun
 ```
 
 ## 快速开始
@@ -61,13 +74,13 @@ which claude
 进入项目目录：
 
 ```bash
-cd /home/ec2-user/claude-buddy-changer
+cd claude-buddy-changer
 ```
 
-启动本地页面：
+启动本地页面（**必须使用 Bun**）：
 
 ```bash
-node server.js
+npx bun run server.js
 ```
 
 浏览器打开：
@@ -75,6 +88,8 @@ node server.js
 ```text
 http://127.0.0.1:43123
 ```
+
+> ⚠️ 不要使用 `node server.js` — 会导致 buddy 预测结果与 Claude Code 实际显示不一致。
 
 ## 网页使用说明
 
@@ -152,49 +167,55 @@ Min stat = CHAOS:80
 
 ## 命令行使用说明
 
-除了网页，也可以直接用 CLI。
-
-进入目录：
-
-```bash
-cd /home/ec2-user/claude-buddy-changer
-```
+除了网页，也可以直接用 CLI。**搜索和预览必须使用 Bun。**
 
 ### 预览当前结果
 
 ```bash
-node buddy-lab.js preview
+npx bun run buddy-lab.js preview
 ```
 
 ### 预览指定 salt
 
 ```bash
-node buddy-lab.js preview --salt friend-2026-401
+npx bun run buddy-lab.js preview --salt friend-2026-401
 ```
 
 ### 搜索指定物种
 
 ```bash
-node buddy-lab.js search --species owl --total 500000
+npx bun run buddy-lab.js search --species owl --total 500000
 ```
 
 ### 搜索稀有宠物
 
 ```bash
-node buddy-lab.js search --species dragon --rarity legendary --total 1000000
+npx bun run buddy-lab.js search --species dragon --rarity legendary --total 1000000
 ```
 
 ### 搜索 shiny
 
 ```bash
-node buddy-lab.js search --shiny --total 1000000
+npx bun run buddy-lab.js search --shiny --total 1000000
 ```
 
 ### 搜索高属性宠物
 
 ```bash
-node buddy-lab.js search --species chonk --min-stat CHAOS:80 --total 500000
+npx bun run buddy-lab.js search --species chonk --min-stat CHAOS:80 --total 500000
 ```
+
+### 应用 salt 到本机 Claude Code
+
+搜索到喜欢的 buddy 后，可以用 `apply-buddy.js` 直接应用：
+
+```bash
+node apply-buddy.js <salt>
+# 例如：
+node apply-buddy.js lab-00001609907
+```
+
+> ⚠️ **Windows 用户注意**：必须先完全退出 Claude Code 再运行此命令，否则会报 `EBUSY` 错误（binary 被锁定）。应用完成后重启 Claude Code 即可。
 
 ### 常用参数
 
@@ -285,10 +306,24 @@ userId + salt
 先确认：
 
 ```bash
-which claude
+which claude   # Linux/macOS
+where claude   # Windows
 ```
 
 如果没有结果，说明当前环境里还没有可检测的 Claude 安装路径。
+
+Windows 下工具会自动检查以下位置：
+
+- `%USERPROFILE%\.local\bin\claude.exe`
+- `%LOCALAPPDATA%\Programs\claude\claude.exe`
+
+### 应用时报 EBUSY 错误？
+
+Windows 下 Claude Code 运行时会锁定 `claude.exe`。解决方法：
+
+1. 完全退出 Claude Code
+2. 运行 `node apply-buddy.js <salt>`
+3. 重启 Claude Code
 
 ### 应用之后为什么没变？
 
@@ -309,25 +344,35 @@ which claude
 
 ## 开发
 
-启动网页：
+启动网页（使用 Bun）：
 
 ```bash
-cd /home/ec2-user/claude-buddy-changer
-node server.js
+npx bun run server.js
 ```
 
-调试 CLI：
+调试 CLI（使用 Bun）：
 
 ```bash
-node buddy-lab.js preview
-node buddy-lab.js search --species owl --total 500000
+npx bun run buddy-lab.js preview
+npx bun run buddy-lab.js search --species owl --total 500000
 ```
+
+### 关于 hash 算法
+
+Claude Code 的 buddy 系统使用 `userId + salt` 生成 buddy。hash 函数的选择取决于运行环境：
+
+| 环境 | Hash 函数 | 准确性 |
+|------|-----------|--------|
+| Bun（Claude Code 实际使用） | `Bun.hash()` (wyhash) | ✅ 准确 |
+| Node.js（fallback） | FNV-1a | ❌ 不准确 |
+
+本工具已适配：在 Bun 环境下自动使用 `Bun.hash()`，在 Node.js 下 fallback 到 FNV-1a。为确保预测准确，**始终使用 Bun 运行**。
 
 ---
 
 ## English
 
-`Claude Buddy Changer` is a local tool for searching, previewing, applying, and restoring Claude Code buddy salts.
+`Claude Buddy Changer` is a local tool for searching, previewing, applying, and restoring Claude Code buddy salts. Works on Linux, macOS, and Windows.
 
 Main capabilities:
 
@@ -335,35 +380,47 @@ Main capabilities:
 - compute buddy results from `userId + salt`
 - render near-original ASCII buddy previews
 - search matching salts by filters
-- detect local Claude Code binary
+- detect local Claude Code binary (Linux/macOS/Windows)
 - apply a selected salt to the local install
 - restore the original salt later
 
-Quick start:
+### Requirements
+
+- **Bun** (required for accurate buddy prediction) — install via `npm install -g bun`
+- Node.js 18+ (for `apply-buddy.js`)
+- Claude Code installed locally
+
+> ⚠️ **Critical**: Claude Code uses `Bun.hash()` (wyhash) internally to calculate buddies. Running this tool with `node` uses FNV-1a instead, producing **incorrect predictions**. Always use `npx bun run` to start the server and CLI.
+
+### Quick start
 
 ```bash
-cd /home/ec2-user/claude-buddy-changer
-node server.js
+cd claude-buddy-changer
+npx bun run server.js
 ```
 
-Open:
+Open: `http://127.0.0.1:43123`
 
-```text
-http://127.0.0.1:43123
-```
-
-CLI examples:
+### CLI examples
 
 ```bash
-node buddy-lab.js preview
-node buddy-lab.js preview --salt friend-2026-401
-node buddy-lab.js search --species owl --total 500000
-node buddy-lab.js search --species dragon --rarity legendary --total 1000000
-node buddy-lab.js search --shiny --total 1000000
+npx bun run buddy-lab.js preview
+npx bun run buddy-lab.js preview --salt friend-2026-401
+npx bun run buddy-lab.js search --species owl --total 500000
+npx bun run buddy-lab.js search --species dragon --rarity legendary --total 1000000
+npx bun run buddy-lab.js search --shiny --total 1000000
 ```
 
-Important note:
+### Applying a salt
 
-- results depend on `userId + salt`, not on `salt` alone
-- applying a buddy modifies the local Claude Code installation
-- restart Claude Code after applying or restoring
+```bash
+node apply-buddy.js <salt>
+```
+
+> ⚠️ **Windows**: You must fully quit Claude Code before running this command (the binary is locked while running). Restart Claude Code afterwards.
+
+### Important notes
+
+- Results depend on `userId + salt`, not on `salt` alone
+- Applying a buddy modifies the local Claude Code installation
+- Restart Claude Code after applying or restoring
