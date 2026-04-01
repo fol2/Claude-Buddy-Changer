@@ -4,6 +4,9 @@
 
 中文优先的 Claude Code Buddy 本地搜索、预览、切换工具。
 
+<img width="1920" height="989" alt="image" src="https://github.com/user-attachments/assets/7f438153-0246-4ff4-bca0-60cd54a60941" />
+
+
 它做 4 件事：
 
 - 自动读取你本机 Claude Code 的 `userId`
